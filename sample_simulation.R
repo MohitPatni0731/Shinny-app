@@ -1,6 +1,5 @@
 library(shiny)
 
-# Define UI
 ui <- fluidPage(
   titlePanel("Statistical Power and Sample Size Calculator (Simulation)"),
   sidebarLayout(
@@ -38,7 +37,7 @@ ui <- fluidPage(
   )
 )
 
-# Define server logic
+
 server <- function(input, output) {
   # Sample Size Calculation with Simulation
   calculate_sample_size <- reactive({
