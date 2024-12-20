@@ -1,261 +1,259 @@
 library(shiny)
 library(bslib)
+library(ggplot2)
+library(plotly)
+library(dplyr)
 
-image_button <- function(inputId, img_url, tooltip_text) {
-  actionButton(
-    inputId = inputId,
-    label = tags$img(src = img_url, height = "100%", width = "100%"),
-    class = "image-button",
-    style = paste0(
-      "width: 120px; height: 120px; border: none; background: none; padding: 0; cursor: pointer; "
-    ),
-    `data-toggle` = "tooltip",
-    `data-placement` = "right",
-    title = tooltip_text
-  )
-}
+# Custom theme and styling
+custom_theme <- bs_theme(
+  version = 5,
+  bootswatch = "flatly",
+  primary = "#3498db",
+  secondary = "#2ecc71"
+)
 
+# Define UI
 ui <- fluidPage(
-  theme = bs_theme(), 
+  theme = custom_theme,
+  
+  # Page title
   tags$head(
-    tags$script(HTML("
-      $(document).ready(function(){
-        $('[data-toggle=\"tooltip\"]').tooltip(); 
-      });
-    ")),
+    tags$title("Distribution Explorer"),
     tags$style(HTML("
-      /* Container Flexbox */
-      .main-container {
+      .distribution-image-container {
         display: flex;
-        flex-direction: row;
-        height: 100vh;
-        padding: 20px;
-        box-sizing: border-box;
-      }
-      
-      /* Left Panel */
-      .left-panel {
-        width: 30%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding-right: 20px;
-        box-sizing: border-box;
-      }
-      
-      /* Right Panel */
-      .right-panel {
-        width: 70%;
-        padding-left: 10px; /* Reduced padding */
-        box-sizing: border-box;
-        display: flex;
+        flex-wrap: wrap;
         justify-content: center;
-        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
       }
-      
-      /* Vertical Separator */
-      .separator {
-        border-left: 2px solid #ccc;
-        height: 100%;
-        margin: 0 20px;
+      .distribution-image {
+        width: 150px;
+        height: 120px;
+        object-fit: cover;
+        cursor: pointer;
+        transition: transform 0.3s ease;
+        border-radius: 10px;
+        margin: 10px;
       }
-      
-      /* Title Styling */
-      .title {
-        font-size: 1.5em;
-        margin-bottom: 30px;
-        text-align: center;
-        font-weight: bold;
-      }
-      
-      /* Image Button Hover Effect */
-      .image-button:hover {
+      .distribution-image:hover {
         transform: scale(1.05);
-        transition: transform 0.2s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
       }
-      
-      /* Remove default button styling */
-      .image-button:focus {
-        outline: none;
-        box-shadow: none;
-      }
-      
-      /* Responsive Adjustments */
-      @media (max-width: 768px) {
-        .main-container {
-          flex-direction: column;
-        }
-        
-        .left-panel, .right-panel {
-          width: 100%;
-          padding: 10px;
-        }
-        
-        .separator {
-          display: none;
-        }
+      .heavy-tailed-section {
+        margin-top: 20px;
+        text-align: center;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 10px;
       }
     "))
   ),
   
-  div(
-    class = "main-container",
-    
-    div(
-      class = "left-panel",
-      
-      radioButtons("own_data", "Do you have your own data?", choices = c("Yes", "No"), selected = "No"),
-      
-      conditionalPanel(
-        condition = "input.own_data == 'Yes'",
+  #titlePanel("Statistical Distribution Explorer"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      # Distribution Image Selection
+      div(
+        class = "distribution-image-container",
         
+        # Add text above images
         div(
-          class = "title",
-          "What is the shape of your data?"
+          style = "text-align: center; width: 100%; margin-bottom: 15px;",
+          tags$h4("What is the shape of your data?")
         ),
         
-        image_button(
-          inputId = "gamma_dist",
-          img_url = "Gamma.jpg",  
-          tooltip_text = "Gamma Distribution (Alpha)"
+        # First Row
+        div(
+          style = "display: flex; justify-content: center; width: 100%;",
+          # Gamma Distribution Image
+          tags$img(
+            src = "gamma.jpg", 
+            onclick = "Shiny.setInputValue('selected_distribution', 'gamma')",
+            class = "distribution-image",
+            alt = "Gamma Distribution"
+          ),
+          
+          # Beta Distribution Image
+          tags$img(
+            src = "beta.jpg", 
+            onclick = "Shiny.setInputValue('selected_distribution', 'beta')",
+            class = "distribution-image",
+            alt = "Beta Distribution"
+          )
         ),
         
-        br(),
-        
-        image_button(
-          inputId = "beta_dist",
-          img_url = "Beta.jpg",  
-          tooltip_text = "Beta Distribution"
-        ),
-        
-        br(),
-        
-        image_button(
-          inputId = "exponential_dist",
-          img_url = "Exponential.jpg",  
-          tooltip_text = "Exponential Distribution"
-        ),
-        
-        br(),
-        
-        image_button(
-          inputId = "uniform_dist",
-          img_url = "Uniform.jpg",  
-          tooltip_text = "Uniform Distribution"
+        # Second Row
+        div(
+          style = "display: flex; justify-content: center; width: 100%;",
+          # Exponential Distribution Image
+          tags$img(
+            src = "exponential.jpg", 
+            onclick = "Shiny.setInputValue('selected_distribution', 'exponential')",
+            class = "distribution-image",
+            alt = "Exponential Distribution"
+          ),
+          
+          # Uniform Distribution Image
+          tags$img(
+            src = "uniform.jpg", 
+            onclick = "Shiny.setInputValue('selected_distribution', 'uniform')",
+            class = "distribution-image",
+            alt = "Uniform Distribution"
+          )
         )
       ),
       
+      # Heavy-tailed Section
+      div(
+        class = "heavy-tailed-section",
+        h4("Is your data heavy-tailed?"),
+        radioButtons(
+          inputId = "heavy_tailed", 
+          label = NULL, 
+          choices = c("Yes", "No"),
+          selected = NULL  # No default selection
+        )
+      ),
+      
+      # Normal Distribution Parameters (only when heavy_tailed is 'No' and no distribution is selected)
       conditionalPanel(
-         condition = "input.own_data == 'Yes'",
-         radioButtons("heavy_tailed", "Is your data heavy-tailed?", choices = c("Yes", "No"), selected = NULL)
-       ),
-       
-       conditionalPanel(
-         condition = "input.heavy_tailed == 'No'",
-         numericInput("mean", "Mean:", value = 0),
-         numericInput("sd", "Standard Deviation:", value = 1)
-       )
+        condition = "input.heavy_tailed == 'No' && (input.selected_distribution == null || input.selected_distribution == '')",
+        numericInput("normal_mean", "Mean", value = 0, step = 0.1),
+        numericInput("normal_sd", "Standard Deviation", value = 1, min = 0.1, step = 0.1)
+      ),
+      
+      # Conditional Distribution Parameters
+      uiOutput("distribution_params"),
+      
+      # Generate Data Button
+      # Generate Data Button
+div(
+  style = "display: flex; justify-content: center; width: 100%; margin-top: 15px;",
+  actionButton("generate_data", "Generate Data", class = "btn-primary")
+)
     ),
     
-    div(class = "separator"),
-    
-    div(
-      class = "right-panel",
-      
-      plotOutput("selected_plot", height = "600px", width = "100%")
+    # Main Panel for Plotting
+    mainPanel(
+      plotlyOutput("distribution_plot", height = "500px")
     )
-  ),
-  
-  hr(),
-  h3("Debugging: Image Paths"),
-  verbatimTextOutput("image_check")
+  )
 )
 
+# Server Logic
 server <- function(input, output, session) {
+  # Reactive value to track if data generation button has been clicked
+  data_generated <- reactiveVal(FALSE)
   
-  selected_dist <- reactiveVal(NULL)
+  # Store generated data
+  generated_data <- reactiveVal(NULL)
   
-  observeEvent(input$gamma_dist, {
-    selected_dist("gamma")
+  # Dynamic Distribution Parameters
+  output$distribution_params <- renderUI({
+    # Ensure distribution is selected and heavy_tailed is not 'No'
+    if (!is.null(input$selected_distribution) && 
+        input$selected_distribution != '' && 
+        input$heavy_tailed != 'No') {
+      switch(input$selected_distribution,
+        "gamma" = tagList(
+          numericInput("gamma_shape", "Shape", value = 2, min = 0.1, step = 0.1),
+          numericInput("gamma_rate", "Rate", value = 1, min = 0.1, step = 0.1)
+        ),
+        "beta" = tagList(
+          numericInput("beta_shape1", "Shape 1", value = 2, min = 0.1, step = 0.1),
+          numericInput("beta_shape2", "Shape 2", value = 5, min = 0.1, step = 0.1)
+        ),
+        "exponential" = numericInput("exp_rate", "Rate", value = 1, min = 0.1, step = 0.1),
+        "uniform" = tagList(
+          numericInput("unif_min", "Minimum", value = 0, step = 0.1),
+          numericInput("unif_max", "Maximum", value = 1, step = 0.1)
+        )
+      )
+    }
   })
   
-  observeEvent(input$beta_dist, {
-    selected_dist("beta")
+  # Data Generation when Generate Data button is clicked
+  observeEvent(input$generate_data, {
+    set.seed(123)
+    n_samples <- 1000
+    
+    # Ensure heavy_tailed is not NULL
+    heavy_tailed <- if (is.null(input$heavy_tailed)) NULL else input$heavy_tailed
+    
+    # Ensure selected_distribution is not NULL
+    selected_distribution <- if (is.null(input$selected_distribution)) "" else input$selected_distribution
+    
+    # Data generation logic
+    data <- if (selected_distribution == 'gamma') {
+      shape <- if (is.null(input$gamma_shape)) 2 else input$gamma_shape
+      rate <- if (is.null(input$gamma_rate)) 1 else input$gamma_rate
+      rgamma(n_samples, shape = shape, rate = rate)
+    } else if (selected_distribution == 'beta') {
+      shape1 <- if (is.null(input$beta_shape1)) 2 else input$beta_shape1
+      shape2 <- if (is.null(input$beta_shape2)) 5 else input$beta_shape2
+      rbeta(n_samples, shape1 = shape1, shape2 = shape2)
+    } else if (selected_distribution == 'exponential') {
+      rate <- if (is.null(input$exp_rate)) 1 else input$exp_rate
+      rexp(n_samples, rate = rate)
+    } else if (selected_distribution == 'uniform') {
+      min_val <- if (is.null(input$unif_min)) 0 else input$unif_min
+      max_val <- if (is.null(input$unif_max)) 1 else input$unif_max
+      runif(n_samples, min = min_val, max = max_val)
+    } else if (heavy_tailed == 'No' && selected_distribution == '') {
+      # Normal distribution with user-specified or default parameters
+      mean <- if (is.null(input$normal_mean)) 0 else input$normal_mean
+      sd <- if (is.null(input$normal_sd)) 1 else input$normal_sd
+      rnorm(n_samples, mean = mean, sd = sd)
+    } else {
+      # Default to standard normal distribution
+      rnorm(n_samples)
+    }
+    
+    # Update generated data and flag
+    generated_data(data)
+    data_generated(TRUE)
   })
   
-  observeEvent(input$exponential_dist, {
-    selected_dist("exponential")
+  # Distribution Plot
+  output$distribution_plot <- renderPlotly({
+    # Only plot if data has been generated
+    req(data_generated())
+    
+    # Generate data frame from stored generated data
+    data <- data.frame(value = generated_data())
+    
+    # Determine title based on selection
+    heavy_tailed <- if (is.null(input$heavy_tailed)) NULL else input$heavy_tailed
+    selected_distribution <- if (is.null(input$selected_distribution)) "" else input$selected_distribution
+    
+    plot_title <- if (selected_distribution != '') {
+      paste(tools::toTitleCase(selected_distribution), "Distribution")
+    } else if (heavy_tailed == 'No') {
+      mean <- if (is.null(input$normal_mean)) 0 else input$normal_mean
+      sd <- if (is.null(input$normal_sd)) 1 else input$normal_sd
+      paste("Normal Distribution (Mean:", mean, ", SD:", sd, ")")
+    } else {
+      "Standard Normal Distribution"
+    }
+    
+    p <- ggplot(data, aes(x = value)) +
+      geom_histogram(aes(y = after_stat(density)), 
+                     bins = 30, 
+                     fill = "#3498db", 
+                     color = "white") +
+      geom_density(color = "red", size = 1) +
+      labs(
+        title = plot_title,
+        x = "Value",
+        y = "Density"
+      ) +
+      theme_minimal()
+    
+    ggplotly(p)
   })
-  
-  observeEvent(input$uniform_dist, {
-    selected_dist("uniform")
-  })
-  
-   observeEvent(input$heavy_tailed, {
-     if (input$heavy_tailed == 'No') {
-       selected_dist('normal')
-     } else {
-       selected_dist(NULL)
-     }
-   })
-
-   output$selected_plot <- renderPlot({
-     dist_type <- selected_dist()
-     
-     if (is.null(dist_type)) {
-       plot.new()
-       text(0.5,0.5,"Please select a distribution from the left.",cex=1.5)
-     } else {
-       set.seed(123) 
-       par(mar=c(4,4,2,1))
-       switch(dist_type,
-              'gamma'={
-                data<-rgamma(1000,shape=2,rate=1)
-                hist(data,breaks=30,main="Gamma Distribution (Alpha)",
-                     xlab="Value",col="#1f77b4",border="white")
-              },
-              'beta'={
-                data<-rbeta(1000,shape1=2,shape2=5)
-                hist(data,breaks=30,main="Beta Distribution",
-                     xlab="Value",col="#ff7f0e",border="white",probability=TRUE)
-                curve(dbeta(x,shape1=2,shape2=5),add=TRUE,col="black",lwd=2)
-              },
-              'exponential'={
-                data<-rexp(1000,rate=1)
-                hist(data,breaks=30,main="Exponential Distribution",
-                     xlab="Value",col="#2ca02c",border="white")
-              },
-              'uniform'={
-                data<-runif(1000,min=0,max=1)
-                hist(data,breaks=30,main="Uniform Distribution",
-                     xlab="Value",col="#d62728",border="white")
-              },
-              'normal'={
-                mean_val <- input$mean
-                sd_val <- input$sd
-                
-                if (!is.null(mean_val) && !is.null(sd_val)) {
-                  data <- rnorm(1000, mean=mean_val, sd=sd_val)
-                  hist(data, breaks=30, main=paste("Normal Distribution\nMean:", mean_val,
-                                                   "\nSD:", sd_val),
-                       xlab="Value", col="#9467bd", border="white")
-                } else {
-                  plot.new()
-                  text(0.5,0.5,"Please enter valid Mean and SD.",cex=1.5)
-                }
-              }
-       )
-     }
-   })
-   
-   output$image_check <- renderPrint({
-     www_path <- file.path(getwd(), 'www')
-     if (dir.exists(www_path)) {
-       list.files(www_path)
-     } else {
-       'www directory does not exist.'
-     }
-   })
 }
 
-shinyApp(ui=ui, server=server)
+# Run the application 
+shinyApp(ui, server)
