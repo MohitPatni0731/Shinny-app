@@ -50,8 +50,6 @@ ui <- fluidPage(
     "))
   ),
   
-  #titlePanel("Statistical Distribution Explorer"),
-  
   sidebarLayout(
     sidebarPanel(
       # Distribution Image Selection
@@ -113,11 +111,11 @@ ui <- fluidPage(
           inputId = "heavy_tailed", 
           label = NULL, 
           choices = c("Yes", "No"),
-          selected = NULL  # No default selection
+          selected = NULL
         )
       ),
       
-      # Normal Distribution Parameters (only when heavy_tailed is 'No' and no distribution is selected)
+      # Normal Distribution Parameters
       conditionalPanel(
         condition = "input.heavy_tailed == 'No' && (input.selected_distribution == null || input.selected_distribution == '')",
         numericInput("normal_mean", "Mean", value = 0, step = 0.1),
@@ -128,31 +126,69 @@ ui <- fluidPage(
       uiOutput("distribution_params"),
       
       # Generate Data Button
-      # Generate Data Button
-div(
-  style = "display: flex; justify-content: center; width: 100%; margin-top: 15px;",
-  actionButton("generate_data", "Generate Data", class = "btn-primary")
-)
+      div(
+        style = "display: flex; justify-content: center; width: 100%; margin-top: 15px;",
+        actionButton("generate_data", "Generate Data", class = "btn-primary")
+      ),
+      
+      # T-Test Section
+      div(
+        style = "margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 10px;",
+        h4("Statistical Tests"),
+        
+        # T-test type selection
+        radioButtons(
+          "t_test_type",
+          "Select T-Test Type:",
+          choices = c(
+            "One Sample" = "one_sample",
+            "Two Sample" = "two_sample"
+          )
+        ),
+        
+        # Conditional panels for different t-test types
+        conditionalPanel(
+          condition = "input.t_test_type == 'one_sample'",
+          numericInput("mu", "Hypothesized Mean (μ₀):", value = 0),
+          numericInput("conf_level", "Confidence Level:", value = 0.95, min = 0, max = 1, step = 0.01)
+        ),
+        
+        conditionalPanel(
+          condition = "input.t_test_type == 'two_sample'",
+          numericInput("sample2_size", "Sample 2 Size:", value = 1000, min = 1),
+          numericInput("sample2_mean", "Sample 2 Mean:", value = 0),
+          numericInput("sample2_sd", "Sample 2 SD:", value = 1, min = 0.1),
+          numericInput("conf_level_2", "Confidence Level:", value = 0.95, min = 0, max = 1, step = 0.01)
+        ),
+        
+        actionButton("run_ttest", "Run T-Test", class = "btn-primary")
+      )
     ),
     
-    # Main Panel for Plotting
     mainPanel(
-      plotlyOutput("distribution_plot", height = "500px")
+      plotlyOutput("distribution_plot", height = "500px"),
+      
+      # T-Test Results Section
+      conditionalPanel(
+        condition = "input.run_ttest > 0",
+        div(
+          style = "margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 10px;",
+          h4("T-Test Results"),
+          verbatimTextOutput("ttest_results")
+        )
+      )
     )
   )
 )
 
 # Server Logic
 server <- function(input, output, session) {
-  # Reactive value to track if data generation button has been clicked
+  # Reactive values
   data_generated <- reactiveVal(FALSE)
-  
-  # Store generated data
   generated_data <- reactiveVal(NULL)
   
   # Dynamic Distribution Parameters
   output$distribution_params <- renderUI({
-    # Ensure distribution is selected and heavy_tailed is not 'No'
     if (!is.null(input$selected_distribution) && 
         input$selected_distribution != '' && 
         input$heavy_tailed != 'No') {
@@ -174,18 +210,14 @@ server <- function(input, output, session) {
     }
   })
   
-  # Data Generation when Generate Data button is clicked
+  # Data Generation
   observeEvent(input$generate_data, {
     set.seed(123)
     n_samples <- 1000
     
-    # Ensure heavy_tailed is not NULL
     heavy_tailed <- if (is.null(input$heavy_tailed)) NULL else input$heavy_tailed
-    
-    # Ensure selected_distribution is not NULL
     selected_distribution <- if (is.null(input$selected_distribution)) "" else input$selected_distribution
     
-    # Data generation logic
     data <- if (selected_distribution == 'gamma') {
       shape <- if (is.null(input$gamma_shape)) 2 else input$gamma_shape
       rate <- if (is.null(input$gamma_rate)) 1 else input$gamma_rate
@@ -202,29 +234,23 @@ server <- function(input, output, session) {
       max_val <- if (is.null(input$unif_max)) 1 else input$unif_max
       runif(n_samples, min = min_val, max = max_val)
     } else if (heavy_tailed == 'No' && selected_distribution == '') {
-      # Normal distribution with user-specified or default parameters
       mean <- if (is.null(input$normal_mean)) 0 else input$normal_mean
       sd <- if (is.null(input$normal_sd)) 1 else input$normal_sd
       rnorm(n_samples, mean = mean, sd = sd)
     } else {
-      # Default to standard normal distribution
       rnorm(n_samples)
     }
     
-    # Update generated data and flag
     generated_data(data)
     data_generated(TRUE)
   })
   
   # Distribution Plot
   output$distribution_plot <- renderPlotly({
-    # Only plot if data has been generated
     req(data_generated())
     
-    # Generate data frame from stored generated data
     data <- data.frame(value = generated_data())
     
-    # Determine title based on selection
     heavy_tailed <- if (is.null(input$heavy_tailed)) NULL else input$heavy_tailed
     selected_distribution <- if (is.null(input$selected_distribution)) "" else input$selected_distribution
     
@@ -252,6 +278,66 @@ server <- function(input, output, session) {
       theme_minimal()
     
     ggplotly(p)
+  })
+  
+  # T-Test Results
+  output$ttest_results <- renderPrint({
+    req(input$run_ttest)
+    req(data_generated())
+    
+    sample1_data <- generated_data()
+    
+    validate(
+      need(!is.null(sample1_data), "Please generate data first by clicking the 'Generate Data' button.")
+    )
+    
+    if (input$t_test_type == "one_sample") {
+      # Perform one-sample t-test
+      test_result <- t.test(sample1_data, 
+                          mu = input$mu, 
+                          conf.level = input$conf_level)
+      
+      cat("One-Sample T-Test Results:\n\n")
+      cat("Hypothesized mean (μ₀):", input$mu, "\n")
+      cat("Sample mean:", round(mean(sample1_data), 4), "\n")
+      cat("Sample SD:", round(sd(sample1_data), 4), "\n")
+      cat("t-statistic:", round(test_result$statistic, 4), "\n")
+      cat("degrees of freedom:", round(test_result$parameter, 2), "\n")
+      cat("p-value:", format.pval(test_result$p.value, digits = 4), "\n")
+      cat(paste0(input$conf_level * 100, "% Confidence Interval:\n"))
+      cat("[", round(test_result$conf.int[1], 4), ", ", 
+          round(test_result$conf.int[2], 4), "]\n")
+      
+    } else if (input$t_test_type == "two_sample") {
+      # Generate second sample based on user inputs
+      set.seed(124)  # Different seed from first sample
+      sample2_data <- rnorm(input$sample2_size, 
+                          mean = input$sample2_mean, 
+                          sd = input$sample2_sd)
+      
+      # Perform two-sample t-test
+      test_result <- t.test(sample1_data, sample2_data, 
+                          conf.level = input$conf_level_2)
+      
+      cat("Two-Sample T-Test Results:\n\n")
+      cat("Sample 1:\n")
+      cat("  Mean:", round(mean(sample1_data), 4), "\n")
+      cat("  SD:", round(sd(sample1_data), 4), "\n")
+      cat("  Size:", length(sample1_data), "\n\n")
+      
+      cat("Sample 2:\n")
+      cat("  Mean:", round(mean(sample2_data), 4), "\n")
+      cat("  SD:", round(sd(sample2_data), 4), "\n")
+      cat("  Size:", length(sample2_data), "\n\n")
+      
+      cat("Test Statistics:\n")
+      cat("t-statistic:", round(test_result$statistic, 4), "\n")
+      cat("degrees of freedom:", round(test_result$parameter, 2), "\n")
+      cat("p-value:", format.pval(test_result$p.value, digits = 4), "\n")
+      cat(paste0(input$conf_level_2 * 100, "% Confidence Interval for difference in means:\n"))
+      cat("[", round(test_result$conf.int[1], 4), ", ", 
+          round(test_result$conf.int[2], 4), "]\n")
+    }
   })
 }
 
